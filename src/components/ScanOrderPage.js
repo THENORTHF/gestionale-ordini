@@ -21,13 +21,14 @@ export default function ScanOrderPage() {
   useEffect(() => {
     if (scannedBarcode) return;
 
-    // prima prendo i device disponibili
+    // Catturiamo una copia del ref all’inizio dell’effetto
+    const reader = codeReader.current;
+
     BrowserMultiFormatReader
       .listVideoInputDevices()
       .then(devices => {
         if (devices.length === 0) throw new Error('Nessuna camera trovata');
-        // usa il primo device (tipicamente la back camera sui telefoni)
-        return codeReader.current.decodeOnceFromVideoDevice(
+        return reader.decodeOnceFromVideoDevice(
           devices[0].deviceId,
           videoRef.current
         );
@@ -41,7 +42,7 @@ export default function ScanOrderPage() {
       });
 
     return () => {
-      codeReader.current.reset();
+      reader.reset();
     };
   }, [scannedBarcode]);
 
