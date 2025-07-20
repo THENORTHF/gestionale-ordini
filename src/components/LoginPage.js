@@ -12,16 +12,18 @@ export default function LoginPage() {
   const { login }               = useContext(AuthContext);
   const navigate                = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch(`${API}/api/worker-login`, {
+      // 👇 endpoint corretto per il login workers
+      const res = await fetch(`${API}/api/workers/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, code })
       });
       if (!res.ok) {
+        // prova a leggere l’errore dal body; fallback generico
         const { error: msg } = await res.json().catch(() => ({}));
         throw new Error(msg || 'Login fallito');
       }
@@ -38,9 +40,7 @@ export default function LoginPage() {
       <h2>Login Operaio</h2>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Username
-          </label>
+          <label style={{ display: 'block', marginBottom: 4 }}>Username</label>
           <input
             type="text"
             value={username}
@@ -49,10 +49,9 @@ export default function LoginPage() {
             required
           />
         </div>
+
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Codice Accesso
-          </label>
+          <label style={{ display: 'block', marginBottom: 4 }}>Codice Accesso</label>
           <input
             type="password"
             value={code}
@@ -61,11 +60,13 @@ export default function LoginPage() {
             required
           />
         </div>
+
         {error && (
           <div style={{ color: 'red', marginBottom: 12 }}>
             {error}
           </div>
         )}
+
         <button
           type="submit"
           style={{
