@@ -18,12 +18,8 @@ root.render(
   </React.StrictMode>
 );
 
-// Registra il service worker solo in produzione
-if (process.env.NODE_ENV === 'production') {
-  serviceWorkerRegistration.register();
-} else {
-  serviceWorkerRegistration.unregister();
-}
+// **Disabilitiamo sempre il service worker**
+serviceWorkerRegistration.unregister();
 
 // Misurazione performance (facoltativa)
 reportWebVitals();
