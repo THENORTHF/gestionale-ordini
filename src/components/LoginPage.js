@@ -17,7 +17,7 @@ export default function LoginPage() {
     setError('');
     try {
       // 👇 endpoint corretto per il login workers
-      const res = await fetch(`${API}/api/workers/login`, {
+        const res = await fetch(`${API}/api/worker-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, code })
