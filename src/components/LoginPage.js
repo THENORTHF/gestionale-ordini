@@ -6,24 +6,26 @@ import { AuthContext } from '../AuthContext';
 const API = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [code, setCode]         = useState('');
-  const [error, setError]       = useState('');
-  const { login }               = useContext(AuthContext);
-  const navigate                = useNavigate();
+  const [username, setUsername]       = useState('');
+  const [code, setCode]               = useState(''); // manteniamo "code" come stato locale
+  const [error, setError]             = useState('');
+  const { login }                     = useContext(AuthContext);
+  const navigate                      = useNavigate();
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     try {
-      // 👇 endpoint corretto per il login workers
-        const res = await fetch(`${API}/api/worker-login`, {
+      const res = await fetch(`${API}/api/worker-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, code })
+        // qui inviamo il campo "access_code" come il backend si aspetta
+        body: JSON.stringify({ 
+          username, 
+          access_code: code 
+        })
       });
       if (!res.ok) {
-        // prova a leggere l’errore dal body; fallback generico
         const { error: msg } = await res.json().catch(() => ({}));
         throw new Error(msg || 'Login fallito');
       }
