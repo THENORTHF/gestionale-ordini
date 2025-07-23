@@ -3,37 +3,47 @@ import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
 
-const API = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API = process.env.REACT_APP_API_URL;
 
 export default function LoginPage() {
-  const [username, setUsername]       = useState('');
-  const [code, setCode]               = useState(''); // manteniamo "code" come stato locale
-  const [error, setError]             = useState('');
-  const { login }                     = useContext(AuthContext);
-  const navigate                      = useNavigate();
+  const [username, setUsername] = useState('');
+  const [code, setCode]         = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const { login }               = useContext(AuthContext);
+  const navigate                = useNavigate();
+
+  const loginWorker = async (username, accessCode) => {
+    const res = await fetch(`${API}/api/worker-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, access_code: accessCode })
+    });
+    if (res.status === 404) {
+      throw new Error('Endpoint non trovato');
+    }
+    if (res.status === 401) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Credenziali errate');
+    }
+    if (!res.ok) {
+      throw new Error('Errore durante il login');
+    }
+    return await res.json();
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
-      const res = await fetch(`${API}/api/worker-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // qui inviamo il campo "access_code" come il backend si aspetta
-        body: JSON.stringify({ 
-          username, 
-          access_code: code 
-        })
-      });
-      if (!res.ok) {
-        const { error: msg } = await res.json().catch(() => ({}));
-        throw new Error(msg || 'Login fallito');
-      }
-      const userData = await res.json();
+      const userData = await loginWorker(username, code);
       login(userData);
       navigate('/list', { replace: true });
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,6 +59,7 @@ export default function LoginPage() {
             onChange={e => setUsername(e.target.value)}
             style={{ width: '100%', padding: 8 }}
             required
+            disabled={loading}
           />
         </div>
 
@@ -60,6 +71,7 @@ export default function LoginPage() {
             onChange={e => setCode(e.target.value)}
             style={{ width: '100%', padding: 8 }}
             required
+            disabled={loading}
           />
         </div>
 
@@ -71,17 +83,18 @@ export default function LoginPage() {
 
         <button
           type="submit"
+          disabled={loading}
           style={{
             width: '100%',
             padding: 10,
-            background: '#0066cc',
+            background: loading ? '#999' : '#0066cc',
             color: '#fff',
             border: 'none',
             borderRadius: 4,
-            cursor: 'pointer'
+            cursor: loading ? 'not-allowed' : 'pointer'
           }}
         >
-          Accedi
+          {loading ? 'Caricamento...' : 'Accedi'}
         </button>
       </form>
     </div>
