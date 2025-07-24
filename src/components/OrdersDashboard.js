@@ -1,6 +1,8 @@
 // src/components/OrdersDashboard.js
 import React, { useState, useEffect } from "react";
 
+const API = process.env.REACT_APP_API_URL;
+
 export default function OrdersDashboard() {
   const [cliente, setCliente] = useState("");
   const [quantita, setQuantita] = useState(1);
@@ -17,7 +19,7 @@ export default function OrdersDashboard() {
 
   // Carica tipi prodotto
   useEffect(() => {
-    fetch("http://localhost:5000/api/product-types")
+    fetch(`${API}/api/product-types`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setProductTypes(data) : setProductTypes([]))
       .catch(console.error);
@@ -30,7 +32,7 @@ export default function OrdersDashboard() {
       setSottocategoria("");
       return;
     }
-    fetch(`http://localhost:5000/api/sub-categories?productTypeId=${tipoSelezionato}`)
+    fetch(`${API}/api/sub-categories?productTypeId=${tipoSelezionato}`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setSubCategories(data) : setSubCategories([]))
       .catch(console.error);
@@ -38,7 +40,7 @@ export default function OrdersDashboard() {
 
   // Carica ordini esistenti
   useEffect(() => {
-    fetch("http://localhost:5000/api/orders")
+    fetch(`${API}/api/orders`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setOrdini(data) : setOrdini([]))
       .catch(console.error);
@@ -51,7 +53,7 @@ export default function OrdersDashboard() {
       return;
     }
     try {
-      const res = await fetch("http://localhost:5000/api/orders", {
+      const res = await fetch(`${API}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -197,7 +199,7 @@ export default function OrdersDashboard() {
                 Stampa
               </button>
               <button onClick={async () => {
-                await fetch(`http://localhost:5000/api/orders/${o.id}`, { method: 'DELETE' });
+                await fetch(`${API}/api/orders/${o.id}`, { method: 'DELETE' });
                 setOrdini(prev => prev.filter(x => x.id !== o.id));
               }}>
                 Elimina

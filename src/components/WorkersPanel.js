@@ -1,6 +1,8 @@
 // WorkersPanel.js – Gestione operai (admin)
 import React, { useState, useEffect } from "react";
 
+const API = process.env.REACT_APP_API_URL;
+
 export default function WorkersPanel() {
   const [workers, setWorkers] = useState([]);
   const [username, setUsername] = useState("");
@@ -8,16 +10,16 @@ export default function WorkersPanel() {
 
   // Carica lista operai
   useEffect(() => {
-    fetch("http://localhost:5000/api/workers")
+    fetch(`${API}/api/workers`)
       .then(res => res.json())
       .then(setWorkers)
       .catch(console.error);
-  }, []);
+  }, [API]);
 
   // Aggiungi operaio
   const addWorker = async () => {
     if (!username.trim() || !code.trim()) return;
-    const res = await fetch("http://localhost:5000/api/workers", {
+    const res = await fetch(`${API}/api/workers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, access_code: code })
@@ -30,7 +32,7 @@ export default function WorkersPanel() {
 
   // Elimina operaio
   const delWorker = async id => {
-    await fetch(`http://localhost:5000/api/workers/${id}`, { method: "DELETE" });
+    await fetch(`${API}/api/workers/${id}`, { method: "DELETE" });
     setWorkers(workers.filter(w => w.id !== id));
   };
 
