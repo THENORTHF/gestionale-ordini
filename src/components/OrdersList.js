@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import domtoimage from "dom-to-image-more";
 import QRCode from "react-qr-code";
 
+// Usa SOLO la variabile ambiente: se manca ti accorgi subito!
+const API = process.env.REACT_APP_API_URL;
+
 export default function OrdersList() {
   const [ordini, setOrdini] = useState([]);
   const [selezionati, setSelezionati] = useState(new Set());
@@ -17,7 +20,7 @@ export default function OrdersList() {
 
   // 1) Carica ordini
   useEffect(() => {
-    fetch("http://localhost:5000/api/orders")
+    fetch(`${API}/api/orders`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setOrdini(data) : setOrdini([]))
       .catch(console.error);
@@ -47,7 +50,7 @@ export default function OrdersList() {
   // 4) Aggiorna stato via API
   const updateStatus = async (id, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/orders/${id}/status`, {
+      const res = await fetch(`${API}/api/orders/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -102,7 +105,7 @@ export default function OrdersList() {
     }
     if (azione === "elimina") {
       await Promise.all(arr.map(id =>
-        fetch(`http://localhost:5000/api/orders/${id}`, { method: "DELETE" })
+        fetch(`${API}/api/orders/${id}`, { method: "DELETE" })
       ));
       setOrdini(prev => prev.filter(o => !selezionati.has(o.id)));
       setSelezionati(new Set());
