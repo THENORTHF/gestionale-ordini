@@ -1,6 +1,7 @@
-// src/components/SettingsPanel.js
 import React, { useState, useEffect } from "react";
 import WorkersPanel from "./WorkersPanel";
+
+const API = process.env.REACT_APP_API_URL;
 
 export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState("productTypes");
@@ -40,7 +41,7 @@ function ProductTypesSection() {
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/product-types")
+    fetch(`${API}/api/product-types`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setItems(data) : setItems([]))
       .catch(console.error);
@@ -50,7 +51,7 @@ function ProductTypesSection() {
     const name = newName.trim();
     if (!name) return;
     try {
-      const res = await fetch("http://localhost:5000/api/product-types", {
+      const res = await fetch(`${API}/api/product-types`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -92,7 +93,7 @@ function SubCategoriesSection() {
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/product-types")
+    fetch(`${API}/api/product-types`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setTypes(data) : setTypes([]))
       .catch(console.error);
@@ -100,7 +101,7 @@ function SubCategoriesSection() {
 
   useEffect(() => {
     if (!selectedType) return;
-    fetch(`http://localhost:5000/api/sub-categories?productTypeId=${selectedType}`)
+    fetch(`${API}/api/sub-categories?productTypeId=${selectedType}`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setSubs(data) : setSubs([]))
       .catch(console.error);
@@ -110,7 +111,7 @@ function SubCategoriesSection() {
     const name = newName.trim();
     if (!name || !selectedType) return;
     try {
-      const res = await fetch("http://localhost:5000/api/sub-categories", {
+      const res = await fetch(`${API}/api/sub-categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productTypeId: selectedType, name }),
@@ -161,7 +162,7 @@ function ColorIncrementsSection() {
   const [percent, setPercent] = useState(0);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/color-increments")
+    fetch(`${API}/api/color-increments`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setColors(data) : setColors([]))
       .catch(console.error);
@@ -171,7 +172,7 @@ function ColorIncrementsSection() {
     const color = newColor.trim();
     if (!color) return;
     try {
-      const res = await fetch("http://localhost:5000/api/color-increments", {
+      const res = await fetch(`${API}/api/color-increments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ color, percentIncrement: percent }),
@@ -224,7 +225,7 @@ function PriceListsSection() {
   const [pricePerSqm, setPricePerSqm] = useState(0);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/price-lists")
+    fetch(`${API}/api/price-lists`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setLists(data) : setLists([]))
       .catch(console.error);
@@ -233,7 +234,7 @@ function PriceListsSection() {
   const add = async () => {
     if (!customerId || !productTypeId) return;
     try {
-      const res = await fetch("http://localhost:5000/api/price-lists", {
+      const res = await fetch(`${API}/api/price-lists`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customerId, productTypeId, subCategoryId, pricePerSqm }),
