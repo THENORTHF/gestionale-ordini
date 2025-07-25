@@ -6,6 +6,8 @@ import domtoimage from 'dom-to-image-more';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { AuthContext } from '../AuthContext';
 
+const API = process.env.REACT_APP_API_URL;
+
 export default function ScanOrderPage() {
   const navigate        = useNavigate();
   const { user }        = useContext(AuthContext);
@@ -21,7 +23,6 @@ export default function ScanOrderPage() {
   useEffect(() => {
     if (scannedBarcode) return;
 
-    // Catturiamo una copia del ref all’inizio dell’effetto
     const reader = codeReader.current;
 
     BrowserMultiFormatReader
@@ -49,7 +50,7 @@ export default function ScanOrderPage() {
   // 2) Fetch dettaglio ordine
   useEffect(() => {
     if (!scannedBarcode) return;
-    fetch(`http://localhost:5000/api/orders/barcode/${scannedBarcode}`)
+    fetch(`${API}/api/orders/barcode/${scannedBarcode}`)
       .then(res => {
         if (!res.ok) throw new Error('Ordine non trovato');
         return res.json();
@@ -63,14 +64,14 @@ export default function ScanOrderPage() {
         console.error(err);
         setError('Errore nel recupero dell’ordine');
       });
-  }, [scannedBarcode]);
+  }, [scannedBarcode, API]);
 
   // 3) Salvataggio modifiche
   const handleSave = async () => {
     if (!order) return;
     try {
       const res = await fetch(
-        `http://localhost:5000/api/orders/${order.id}/status`,
+        `${API}/api/orders/${order.id}/status`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -143,7 +144,7 @@ export default function ScanOrderPage() {
     return (
       <div style={{ padding: 20 }}>
         <h2>Inquadra il barcode con la fotocamera</h2>
-        <video ref={videoRef} style={{ width: '100%' }} />
+        <video ref={videoRef} style={{ width: '100%' }} autoPlay playsInline />
       </div>
     );
   }
