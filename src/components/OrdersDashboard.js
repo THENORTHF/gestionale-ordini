@@ -16,6 +16,7 @@ export default function OrdersDashboard() {
   const [telefono, setTelefono] = useState("");
   const [indirizzo, setIndirizzo] = useState("");
   const [ordini, setOrdini] = useState([]);
+  const [multiOrdine, setMultiOrdine] = useState(false);
 
   // Carica tipi prodotto
   useEffect(() => {
@@ -71,16 +72,22 @@ export default function OrdersDashboard() {
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const created = await res.json();
       setOrdini(prev => [created, ...prev]);
-      // reset campi
-      setCliente("");
-      setQuantita(1);
-      setTipoSelezionato("");
-      setSottocategoria("");
-      setDimensioni("");
-      setColore("");
-      setPersonalizzazioni("");
-      setTelefono("");
-      setIndirizzo("");
+      // reset campi: logica multi ordine
+      if (multiOrdine) {
+        setQuantita(1);
+        setDimensioni("");
+        setPersonalizzazioni("");
+      } else {
+        setCliente("");
+        setQuantita(1);
+        setTipoSelezionato("");
+        setSottocategoria("");
+        setDimensioni("");
+        setColore("");
+        setPersonalizzazioni("");
+        setTelefono("");
+        setIndirizzo("");
+      }
       alert(
         `Ordine aggiunto!\nID: ${created.id}\nPrezzo totale: €${Number(created.price_total).toFixed(2)}`
       );
@@ -166,8 +173,19 @@ export default function OrdersDashboard() {
         placeholder="Indirizzo (opzionale)"
         value={indirizzo}
         onChange={e => setIndirizzo(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 20 }}
+        style={{ width: "100%", padding: 8, marginBottom: 10 }}
       />
+
+      {/* Checkbox Multi Ordine */}
+      <label style={{ display: 'block', marginBottom: 20 }}>
+        <input
+          type="checkbox"
+          checked={multiOrdine}
+          onChange={e => setMultiOrdine(e.target.checked)}
+          style={{ marginRight: 8 }}
+        />
+        Multi ordine per stesso cliente/prodotto
+      </label>
 
       <button
         onClick={handleSubmit}
