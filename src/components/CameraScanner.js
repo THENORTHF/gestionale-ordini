@@ -1,4 +1,3 @@
-// src/components/CameraScanner.js
 import React, { useRef, useEffect } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
@@ -8,11 +7,18 @@ export default function CameraScanner({ onDetected }) {
   useEffect(() => {
     const codeReader = new BrowserMultiFormatReader();
 
-    codeReader
+    BrowserMultiFormatReader
       .listVideoInputDevices()
       .then(deviceIds => {
-        // Scegli la prima camera (di solito quella posteriore su mobile)
-        return codeReader.decodeOnceFromVideoDevice(deviceIds[0].deviceId, videoRef.current);
+        // CERCA BACK CAMERA
+        const backCam = deviceIds.find(d =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("environment") ||
+          d.label.toLowerCase().includes("rear")
+        );
+        const deviceId = backCam ? backCam.deviceId : deviceIds[0]?.deviceId;
+        if (!deviceId) throw new Error("Nessuna camera trovata");
+        return codeReader.decodeOnceFromVideoDevice(deviceId, videoRef.current);
       })
       .then(result => {
         if (onDetected) onDetected(result.text);

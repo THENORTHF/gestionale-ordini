@@ -15,12 +15,16 @@ export default function WebScanner() {
       .listVideoInputDevices()
       .then(deviceIds => {
         if (!active) return;
-        const firstDevice = deviceIds[0]?.deviceId;
-        if (!firstDevice) {
-          throw new Error("Nessuna camera trovata");
-        }
+        // CERCA BACK CAMERA
+        const backCam = deviceIds.find(d =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("environment") ||
+          d.label.toLowerCase().includes("rear")
+        );
+        const deviceId = backCam ? backCam.deviceId : deviceIds[0]?.deviceId;
+        if (!deviceId) throw new Error("Nessuna camera trovata");
         return codeReader.decodeOnceFromVideoDevice(
-          firstDevice,
+          deviceId,
           videoRef.current
         );
       })

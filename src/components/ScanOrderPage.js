@@ -1,6 +1,6 @@
 // src/components/ScanOrderPage.js
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Barcode from 'react-barcode';
 import domtoimage from 'dom-to-image-more';
 import { BrowserMultiFormatReader } from '@zxing/browser';
@@ -9,9 +9,10 @@ import { AuthContext } from '../AuthContext';
 const API = process.env.REACT_APP_API_URL;
 
 export default function ScanOrderPage() {
+  const { barcode: urlBarcode } = useParams();
   const navigate        = useNavigate();
   const { user }        = useContext(AuthContext);
-  const [scannedBarcode, setScannedBarcode] = useState(null);
+  const [scannedBarcode, setScannedBarcode] = useState(urlBarcode || null);
   const [order, setOrder]   = useState(null);
   const [status, setStatus] = useState('');
   const [notes, setNotes]   = useState('');
@@ -19,7 +20,7 @@ export default function ScanOrderPage() {
   const videoRef         = useRef(null);
   const codeReader       = useRef(new BrowserMultiFormatReader());
 
-  // 1) Scansione camera
+  // 1) Se non c’è barcode (via URL o già scansionato), fai la scansione
   useEffect(() => {
     if (scannedBarcode) return;
 
@@ -29,13 +30,22 @@ export default function ScanOrderPage() {
       .listVideoInputDevices()
       .then(devices => {
         if (devices.length === 0) throw new Error('Nessuna camera trovata');
+        // Preferisci camera back/environment se c'è
+        const backCam = devices.find(d =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("rear") ||
+          d.label.toLowerCase().includes("environment")
+        );
+        const deviceId = backCam ? backCam.deviceId : devices[0].deviceId;
         return reader.decodeOnceFromVideoDevice(
-          devices[0].deviceId,
+          deviceId,
           videoRef.current
         );
       })
       .then(result => {
         setScannedBarcode(result.text);
+        // Aggiorna URL così puoi refreshare e rimani sulla stessa pagina
+        navigate(`/scan/${result.text}`, { replace: true });
       })
       .catch(err => {
         console.error(err);
@@ -45,7 +55,7 @@ export default function ScanOrderPage() {
     return () => {
       reader.reset();
     };
-  }, [scannedBarcode]);
+  }, [scannedBarcode, navigate]);
 
   // 2) Fetch dettaglio ordine
   useEffect(() => {
