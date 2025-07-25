@@ -7,24 +7,20 @@ export default function CameraScanner({ onDetected }) {
 
   useEffect(() => {
     const codeReader = new BrowserMultiFormatReader();
-    let controls;
 
     codeReader
       .listVideoInputDevices()
       .then(deviceIds => {
-        // scegli il primo device (la back camera su mobile)
+        // Scegli la prima camera (di solito quella posteriore su mobile)
         return codeReader.decodeOnceFromVideoDevice(deviceIds[0].deviceId, videoRef.current);
       })
       .then(result => {
-        onDetected(result.text);
+        if (onDetected) onDetected(result.text);
       })
-      .catch(err => {
-        console.error(err);
-      });
+      .catch(console.error);
 
     return () => {
       codeReader.reset();
-      if (controls) controls.stop();
     };
   }, [onDetected]);
 
