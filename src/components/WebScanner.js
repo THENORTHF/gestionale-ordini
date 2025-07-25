@@ -9,6 +9,7 @@ export default function WebScanner() {
   const [selectedDevice, setSelectedDevice] = useState("");
   const navigate = useNavigate();
 
+  // Carica le videocamere disponibili
   useEffect(() => {
     BrowserMultiFormatReader.listVideoInputDevices()
       .then(devices => {
@@ -27,43 +28,45 @@ export default function WebScanner() {
       });
   }, []);
 
+  // Avvia la scansione sulla camera selezionata
   useEffect(() => {
-     if (!selectedDevice) return;
-  const codeReader = new BrowserMultiFormatReader();
-  let active = true;
-  let stream;
+    if (!selectedDevice) return;
+    const codeReader = new BrowserMultiFormatReader();
+    let active = true;
 
-  // Prima rilascia qualunque stream già attivo
-  if (videoRef.current && videoRef.current.srcObject) {
-    stream = videoRef.current.srcObject;
-    const tracks = stream.getTracks();
-    tracks.forEach(track => track.stop());
-    videoRef.current.srcObject = null;
-  }
-
-  codeReader
-    .decodeOnceFromVideoDevice(selectedDevice, videoRef.current)
-    .then(result => {
-      if (active && result?.getText()) {
-        navigate(`/scan/${result.getText()}`);
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      setError("Impossibile accedere o leggere dalla fotocamera");
-    });
-
-  return () => {
-    active = false;
-    codeReader.reset();
-    // Chiudi anche qui eventuali stream rimasti
+    // Cleanup stream precedente, se c'è
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
       tracks.forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-  };
-}, [selectedDevice, navigate]);
+
+    codeReader
+      .decodeOnceFromVideoDevice(selectedDevice, videoRef.current)
+      .then(result => {
+        if (active && result?.getText()) {
+          navigate(`/scan/${result.getText()}`);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Impossibile accedere o leggere dalla fotocamera");
+      });
+
+    return () => {
+      active = false;
+      // Fix: chiama reset solo se esiste!
+      if (codeReader && typeof codeReader.reset === "function") {
+        codeReader.reset();
+      }
+      // Cleanup anche qui
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [selectedDevice, navigate]);
 
   return (
     <div style={{ maxWidth: 400, margin: "auto", padding: 20, textAlign: "center" }}>
