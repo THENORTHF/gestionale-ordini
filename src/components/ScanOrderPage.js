@@ -1,82 +1,48 @@
 // src/components/ScanOrderPage.js
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Barcode from 'react-barcode';
 import domtoimage from 'dom-to-image-more';
-import { BrowserMultiFormatReader } from '@zxing/browser';
 import { AuthContext } from '../AuthContext';
 
 const API = process.env.REACT_APP_API_URL;
 
 export default function ScanOrderPage() {
-  const { barcode: urlBarcode } = useParams();
+  const { barcode: scannedBarcode } = useParams();
   const navigate        = useNavigate();
   const { user }        = useContext(AuthContext);
-  const [scannedBarcode, setScannedBarcode] = useState(urlBarcode || null);
   const [order, setOrder]   = useState(null);
   const [status, setStatus] = useState('');
   const [notes, setNotes]   = useState('');
   const [error, setError]   = useState('');
-  const videoRef         = useRef(null);
-  const codeReader       = useRef(new BrowserMultiFormatReader());
 
-  // 1) Se non c’è barcode (via URL o già scansionato), fai la scansione
+  // 1) Fetch dettaglio ordine
   useEffect(() => {
-    if (scannedBarcode) return;
+    if (!scannedBarcode) {
+      setError("Barcode mancante!");
+      return;
+    }
+    console.log(">> Barcode param:", scannedBarcode);
 
-    const reader = codeReader.current;
-
-    BrowserMultiFormatReader
-      .listVideoInputDevices()
-      .then(devices => {
-        if (devices.length === 0) throw new Error('Nessuna camera trovata');
-        // Preferisci camera back/environment se c'è
-        const backCam = devices.find(d =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear") ||
-          d.label.toLowerCase().includes("environment")
-        );
-        const deviceId = backCam ? backCam.deviceId : devices[0].deviceId;
-        return reader.decodeOnceFromVideoDevice(
-          deviceId,
-          videoRef.current
-        );
-      })
-      .then(result => {
-        setScannedBarcode(result.text);
-        // Aggiorna URL così puoi refreshare e rimani sulla stessa pagina
-        navigate(`/scan/${result.text}`, { replace: true });
-      })
-      .catch(err => {
-        console.error(err);
-        setError('Impossibile accedere alla fotocamera o leggere il barcode');
-      });
-
-    return () => {
-      reader.reset();
-    };
-  }, [scannedBarcode, navigate]);
-
-  // 2) Fetch dettaglio ordine
-  useEffect(() => {
-    if (!scannedBarcode) return;
     fetch(`${API}/api/orders/barcode/${scannedBarcode}`)
       .then(res => {
+        console.log(">> Fetch status:", res.status);
         if (!res.ok) throw new Error('Ordine non trovato');
         return res.json();
       })
       .then(o => {
+        console.log(">> Ordine caricato:", o);
         setOrder(o);
         setStatus(o.status || 'In attesa');
         setNotes(o.custom_notes || '');
       })
       .catch(err => {
-        console.error(err);
+        console.error(">> Errore fetch ordine:", err);
         setError('Errore nel recupero dell’ordine');
       });
-  }, [scannedBarcode, API]);
+  }, [scannedBarcode]);
 
-  // 3) Salvataggio modifiche
+  // 2) Salvataggio modifiche
   const handleSave = async () => {
     if (!order) return;
     try {
@@ -99,7 +65,7 @@ export default function ScanOrderPage() {
     }
   };
 
-  // 4) Stampa / download etichetta
+  // 3) Stampa / download etichetta (restano uguali)
   const printLabel = () => {
     const el = document.getElementById('scan-label');
     if (!el) return;
@@ -145,16 +111,6 @@ export default function ScanOrderPage() {
       <div style={{ padding: 20 }}>
         <p style={{ color: 'red' }}>{error}</p>
         <button onClick={() => navigate('/list')}>Torna agli ordini</button>
-      </div>
-    );
-  }
-
-  // Fase di scansione
-  if (!scannedBarcode) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h2>Inquadra il barcode con la fotocamera</h2>
-        <video ref={videoRef} style={{ width: '100%' }} autoPlay playsInline />
       </div>
     );
   }
