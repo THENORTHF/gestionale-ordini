@@ -1,3 +1,4 @@
+// src/components/SettingsPanel.js
 import React, { useState, useEffect } from "react";
 import WorkersPanel from "./WorkersPanel";
 
@@ -25,6 +26,9 @@ export default function SettingsPanel() {
         <button onClick={() => setActiveTab("workers")}>
           Operai
         </button>
+        <button onClick={() => setActiveTab("workStatuses")}>
+          Stati lavorazione
+        </button>
       </div>
 
       {activeTab === "productTypes" && <ProductTypesSection />}
@@ -32,10 +36,12 @@ export default function SettingsPanel() {
       {activeTab === "colorIncrements" && <ColorIncrementsSection />}
       {activeTab === "priceLists" && <PriceListsSection />}
       {activeTab === "workers" && <WorkersPanel />}
+      {activeTab === "workStatuses" && <WorkStatusesSection />}
     </div>
   );
 }
 
+// --- Tipi Prodotto
 function ProductTypesSection() {
   const [items, setItems] = useState([]);
   const [newName, setNewName] = useState("");
@@ -86,6 +92,7 @@ function ProductTypesSection() {
   );
 }
 
+// --- Sottocategorie
 function SubCategoriesSection() {
   const [types, setTypes] = useState([]);
   const [selectedType, setSelectedType] = useState("");
@@ -100,7 +107,7 @@ function SubCategoriesSection() {
   }, []);
 
   useEffect(() => {
-    if (!selectedType) return;
+    if (!selectedType) return setSubs([]);
     fetch(`${API}/api/sub-categories?productTypeId=${selectedType}`)
       .then(res => res.json())
       .then(data => Array.isArray(data) ? setSubs(data) : setSubs([]))
@@ -156,6 +163,7 @@ function SubCategoriesSection() {
   );
 }
 
+// --- Colori
 function ColorIncrementsSection() {
   const [colors, setColors] = useState([]);
   const [newColor, setNewColor] = useState("");
@@ -217,6 +225,7 @@ function ColorIncrementsSection() {
   );
 }
 
+// --- Listini
 function PriceListsSection() {
   const [lists, setLists] = useState([]);
   const [customerId, setCustomerId] = useState("");
@@ -291,6 +300,101 @@ function PriceListsSection() {
           : <li>Nessun listino configurato</li>
         }
       </ul>
+    </div>
+  );
+}
+
+// --- Stati di lavorazione personalizzati ---
+function WorkStatusesSection() {
+  const [types, setTypes] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedSub, setSelectedSub] = useState("");
+  const [statuses, setStatuses] = useState(["In attesa","In lavorazione 1","In lavorazione 2","Pronto","Consegnato"]);
+  const [statusInput, setStatusInput] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/product-types`)
+      .then(res => res.json()).then(setTypes);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedType) return setSubs([]);
+    fetch(`${API}/api/sub-categories?productTypeId=${selectedType}`)
+      .then(res => res.json()).then(setSubs);
+  }, [selectedType]);
+
+  useEffect(() => {
+    if (!selectedType) return;
+    fetch(`${API}/api/work-statuses?productTypeId=${selectedType}&subCategoryId=${selectedSub}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.status_list) {
+          let arr;
+          try { arr = JSON.parse(data.status_list); } catch { arr = []; }
+          setStatuses(Array.isArray(arr) && arr.length ? arr : ["In attesa","In lavorazione 1","In lavorazione 2","Pronto","Consegnato"]);
+        }
+      });
+  }, [selectedType, selectedSub]);
+
+  const addStatus = () => {
+    const name = statusInput.trim();
+    if (!name || statuses.includes(name)) return;
+    setStatuses([...statuses, name]);
+    setStatusInput("");
+  };
+  const removeStatus = (s) => {
+    setStatuses(statuses.filter(x => x !== s));
+  };
+  const saveStatuses = async () => {
+    await fetch(`${API}/api/work-statuses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productTypeId: selectedType,
+        subCategoryId: selectedSub,
+        statusList: statuses
+      })
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <div>
+      <h2>Stati di lavorazione</h2>
+      <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+        <select value={selectedType} onChange={e => setSelectedType(e.target.value)} style={{width:180}}>
+          <option value="">Tipo prodotto</option>
+          {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select value={selectedSub} onChange={e => setSelectedSub(e.target.value)} style={{width:180}}>
+          <option value="">Sottocategoria (opz.)</option>
+          {subs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom:12 }}>
+        {statuses.map(s =>
+          <span key={s} style={{
+            border:"1px solid #ccc", borderRadius:8, padding:"4px 10px", marginRight:8, display:"inline-block"
+          }}>
+            {s}
+            <button onClick={()=>removeStatus(s)} style={{marginLeft:6}}>×</button>
+          </span>
+        )}
+      </div>
+      <div style={{marginBottom:12}}>
+        <input
+          placeholder="Nuovo stato"
+          value={statusInput}
+          onChange={e => setStatusInput(e.target.value)}
+          style={{marginRight:8}}
+        />
+        <button onClick={addStatus}>Aggiungi</button>
+      </div>
+      <button onClick={saveStatuses}>Salva stati</button>
+      {saved && <span style={{marginLeft:12, color:"green"}}>Salvato!</span>}
     </div>
   );
 }
