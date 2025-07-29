@@ -18,7 +18,6 @@ export default function OrdersList() {
   });
   const [workStatusMap, setWorkStatusMap] = useState({});
 
-  // 1) Carica ordini
   useEffect(() => {
     fetch(`${API}/api/orders`)
       .then(res => res.json())
@@ -26,7 +25,6 @@ export default function OrdersList() {
       .catch(console.error);
   }, []);
 
-  // 1b) Carica STATI personalizzati (cache per chiave prodotto+sottocategoria)
   useEffect(() => {
     if (!ordini.length) return;
     const toFetch = [];
@@ -43,7 +41,7 @@ export default function OrdersList() {
     (async () => {
       const updated = { ...workStatusMap };
       for (const k of toFetch) {
-        if (!k.productTypeId) continue; // Non fare fetch inutili!
+        if (!k.productTypeId) continue;
         const res = await fetch(
           `${API}/api/work-statuses?productTypeId=${k.productTypeId}&subCategoryId=${k.subCategoryId || ""}`
         );
@@ -56,10 +54,8 @@ export default function OrdersList() {
       }
       setWorkStatusMap(updated);
     })();
-    // eslint-disable-next-line
   }, [ordini]);
 
-  // 2) Filtri
   const filtrati = ordini.filter(o => {
     const created = new Date(o.created_at).toISOString().slice(0, 10);
     return (
@@ -93,7 +89,22 @@ export default function OrdersList() {
     }
   };
 
-  const printLabel = id => {
+  // Aggiorna stato in "Scaricato" dopo stampa/scarica
+  const markDownloaded = async id => {
+    try {
+      const res = await fetch(`${API}/api/orders/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Scaricato" })
+      });
+      if (!res.ok) throw new Error();
+      setOrdini(prev => prev.map(o => o.id === id ? { ...o, status: "Scaricato" } : o));
+    } catch {
+      // Se errore, non bloccare la stampa/scarica
+    }
+  };
+
+  const printLabel = async id => {
     const el = document.getElementById(`label-${id}`);
     if (!el) return;
     const w = window.open("", "_blank", "width=300,height=200");
@@ -104,6 +115,7 @@ export default function OrdersList() {
       </body></html>
     `);
     w.document.close();
+    await markDownloaded(id);
   };
 
   const azioneMultipla = async azione => {
@@ -111,7 +123,9 @@ export default function OrdersList() {
     if (!arr.length) return;
 
     if (azione === "stampa") {
-      arr.forEach(printLabel);
+      for (const id of arr) {
+        await printLabel(id);
+      }
     }
     if (azione === "scarica") {
       for (const id of arr) {
@@ -131,6 +145,9 @@ export default function OrdersList() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+
+        // Aggiorna stato dopo download
+        await markDownloaded(id);
       }
     }
     if (azione === "elimina") {
@@ -197,7 +214,11 @@ export default function OrdersList() {
             ];
             return (
               <tr key={o.id} style={{
-                backgroundColor: o.status?.includes("In lavorazione") ? "#fff9c4" : undefined
+                backgroundColor: o.status === "Scaricato"
+                  ? "orange"
+                  : o.status?.includes("In lavorazione")
+                  ? "#fff9c4"
+                  : undefined
               }}>
                 <td>
                   <input
