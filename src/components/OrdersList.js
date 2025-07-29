@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import domtoimage from "dom-to-image-more";
 import QRCode from "react-qr-code";
 
-// Usa SOLO la variabile ambiente: se manca ti accorgi subito!
 const API = process.env.REACT_APP_API_URL;
 
 export default function OrdersList() {
@@ -17,6 +16,7 @@ export default function OrdersList() {
     startDate: "",
     endDate: ""
   });
+  const [workStatusMap, setWorkStatusMap] = useState({}); // <-- CACHE STATI
 
   // 1) Carica ordini
   useEffect(() => {
@@ -26,14 +26,52 @@ export default function OrdersList() {
       .catch(console.error);
   }, []);
 
+  // 1b) Carica STATI personalizzati (cache per chiave prodotto+sottocategoria)
+  useEffect(() => {
+    if (!ordini.length) return;
+    const toFetch = [];
+    const keyList = [];
+
+    ordini.forEach(o => {
+      // Usa gli ID, non i nomi
+      const key = `${o.product_type_name || o.product_type_id}_${o.sub_category_name || o.sub_category_id || ""}`;
+      keyList.push(key);
+      if (!workStatusMap[key]) {
+        toFetch.push({
+          productTypeId: o.product_type_id,
+          subCategoryId: o.sub_category_id
+        });
+      }
+    });
+
+    if (!toFetch.length) return;
+    (async () => {
+      const updated = { ...workStatusMap };
+      for (const k of toFetch) {
+        // Prendi la lista dal backend (se non esiste, torna default)
+        const res = await fetch(
+          `${API}/api/work-statuses?productTypeId=${k.productTypeId}&subCategoryId=${k.subCategoryId || ""}`
+        );
+        const data = await res.json();
+        const list = data.status_list
+          ? JSON.parse(data.status_list)
+          : ["In attesa", "In lavorazione 1", "In lavorazione 2", "Pronto", "Consegnato"];
+        const cacheKey = `${k.productTypeId}_${k.subCategoryId || ""}`;
+        updated[cacheKey] = list;
+      }
+      setWorkStatusMap(updated);
+    })();
+    // eslint-disable-next-line
+  }, [ordini]);
+
   // 2) Filtri
   const filtrati = ordini.filter(o => {
     const created = new Date(o.created_at).toISOString().slice(0, 10);
     return (
-      (!filters.cliente   || o.customer_name.toLowerCase().includes(filters.cliente.toLowerCase())) &&
-      (!filters.tipo      || o.product_type_name.toLowerCase().includes(filters.tipo.toLowerCase())) &&
-      (!filters.colore    || o.color.toLowerCase().includes(filters.colore.toLowerCase())) &&
-      (!filters.dim       || o.dimensions.toLowerCase().includes(filters.dim.toLowerCase())) &&
+      (!filters.cliente   || o.customer_name?.toLowerCase().includes(filters.cliente.toLowerCase())) &&
+      (!filters.tipo      || o.product_type_name?.toLowerCase().includes(filters.tipo.toLowerCase())) &&
+      (!filters.colore    || o.color?.toLowerCase().includes(filters.colore.toLowerCase())) &&
+      (!filters.dim       || o.dimensions?.toLowerCase().includes(filters.dim.toLowerCase())) &&
       (!filters.startDate || created >= filters.startDate) &&
       (!filters.endDate   || created <= filters.endDate)
     );
@@ -112,6 +150,7 @@ export default function OrdersList() {
     }
   };
 
+  // --- RENDER
   return (
     <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
       <h1>Elenco Ordini</h1>
@@ -162,48 +201,57 @@ export default function OrdersList() {
           </tr>
         </thead>
         <tbody>
-          {filtrati.map(o => (
-            <tr key={o.id} style={{
-              backgroundColor: o.status.includes("In lavorazione") ? "#fff9c4" : undefined
-            }}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selezionati.has(o.id)}
-                  onChange={() => toggleSelezione(o.id)}
-                />
-              </td>
-              <td>{o.id}</td>
-              <td>{o.customer_name}</td>
-              <td>{o.phone_number||"-"}</td>
-              <td>{o.address||"-"}</td>
-              <td>{o.product_type_name}</td>
-              <td>{o.sub_category_name}</td>
-              <td>{o.quantity}</td>
-              <td>{o.color}</td>
-              <td>{o.dimensions}</td>
-              <td>€{Number(o.price_total).toFixed(2)}</td>
-              <td>{o.custom_notes}</td>
-              <td>{new Date(o.created_at).toLocaleDateString()}</td>
-              <td>
-                <select
-                  value={o.status}
-                  onChange={e => updateStatus(o.id, e.target.value)}
-                >
-                  <option>In attesa</option>
-                  <option>In lavorazione 1</option>
-                  <option>In lavorazione 2</option>
-                  <option>Pronto</option>
-                  <option>Consegnato</option>
-                </select>
-              </td>
-              <td style={{ textAlign: "center" }}>
-                <Link to={`/scan/${o.barcode}`}>
-                  <QRCode value={o.barcode} size={80} />
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {filtrati.map(o => {
+            // Chiave cache: usa gli ID!
+            const cacheKey = `${o.product_type_id}_${o.sub_category_id || ""}`;
+            const statusList = workStatusMap[cacheKey] || [
+              "In attesa",
+              "In lavorazione 1",
+              "In lavorazione 2",
+              "Pronto",
+              "Consegnato"
+            ];
+            return (
+              <tr key={o.id} style={{
+                backgroundColor: o.status?.includes("In lavorazione") ? "#fff9c4" : undefined
+              }}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selezionati.has(o.id)}
+                    onChange={() => toggleSelezione(o.id)}
+                  />
+                </td>
+                <td>{o.id}</td>
+                <td>{o.customer_name}</td>
+                <td>{o.phone_number||"-"}</td>
+                <td>{o.address||"-"}</td>
+                <td>{o.product_type_name}</td>
+                <td>{o.sub_category_name}</td>
+                <td>{o.quantity}</td>
+                <td>{o.color}</td>
+                <td>{o.dimensions}</td>
+                <td>€{Number(o.price_total).toFixed(2)}</td>
+                <td>{o.custom_notes}</td>
+                <td>{new Date(o.created_at).toLocaleDateString()}</td>
+                <td>
+                  <select
+                    value={o.status}
+                    onChange={e => updateStatus(o.id, e.target.value)}
+                  >
+                    {statusList.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={{ textAlign: "center" }}>
+                  <Link to={`/scan/${o.barcode}`}>
+                    <QRCode value={o.barcode} size={80} />
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
