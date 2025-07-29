@@ -16,7 +16,7 @@ export default function OrdersList() {
     startDate: "",
     endDate: ""
   });
-  const [workStatusMap, setWorkStatusMap] = useState({}); // <-- CACHE STATI
+  const [workStatusMap, setWorkStatusMap] = useState({});
 
   // 1) Carica ordini
   useEffect(() => {
@@ -30,12 +30,8 @@ export default function OrdersList() {
   useEffect(() => {
     if (!ordini.length) return;
     const toFetch = [];
-    const keyList = [];
-
     ordini.forEach(o => {
-      // Usa gli ID, non i nomi
-      const key = `${o.product_type_name || o.product_type_id}_${o.sub_category_name || o.sub_category_id || ""}`;
-      keyList.push(key);
+      const key = `${o.product_type_id}_${o.sub_category_id || ""}`;
       if (!workStatusMap[key]) {
         toFetch.push({
           productTypeId: o.product_type_id,
@@ -43,12 +39,11 @@ export default function OrdersList() {
         });
       }
     });
-
     if (!toFetch.length) return;
     (async () => {
       const updated = { ...workStatusMap };
       for (const k of toFetch) {
-        // Prendi la lista dal backend (se non esiste, torna default)
+        if (!k.productTypeId) continue; // Non fare fetch inutili!
         const res = await fetch(
           `${API}/api/work-statuses?productTypeId=${k.productTypeId}&subCategoryId=${k.subCategoryId || ""}`
         );
@@ -77,7 +72,6 @@ export default function OrdersList() {
     );
   });
 
-  // 3) Toggle selezione
   const toggleSelezione = id => {
     const nuovo = new Set(selezionati);
     if (nuovo.has(id)) nuovo.delete(id);
@@ -85,7 +79,6 @@ export default function OrdersList() {
     setSelezionati(nuovo);
   };
 
-  // 4) Aggiorna stato via API
   const updateStatus = async (id, newStatus) => {
     try {
       const res = await fetch(`${API}/api/orders/${id}/status`, {
@@ -100,7 +93,6 @@ export default function OrdersList() {
     }
   };
 
-  // 5) Print / Download label
   const printLabel = id => {
     const el = document.getElementById(`label-${id}`);
     if (!el) return;
@@ -150,12 +142,9 @@ export default function OrdersList() {
     }
   };
 
-  // --- RENDER
   return (
     <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
       <h1>Elenco Ordini</h1>
-
-      {/* Filtri */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
         {["cliente","tipo","colore","dim"].map(key => (
           <input
@@ -170,8 +159,6 @@ export default function OrdersList() {
         <input type="date" value={filters.endDate}
           onChange={e => setFilters({ ...filters, endDate: e.target.value })} />
       </div>
-
-      {/* Azioni Multiple */}
       <div style={{ marginBottom: 10 }}>
         <button onClick={() => azioneMultipla("stampa")}>Stampa</button>
         <button onClick={() => azioneMultipla("scarica")} style={{ marginLeft: 8 }}>
@@ -181,8 +168,6 @@ export default function OrdersList() {
           Elimina
         </button>
       </div>
-
-      {/* Tabella */}
       <table width="100%" border="1" cellPadding="6" style={{ borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -202,7 +187,6 @@ export default function OrdersList() {
         </thead>
         <tbody>
           {filtrati.map(o => {
-            // Chiave cache: usa gli ID!
             const cacheKey = `${o.product_type_id}_${o.sub_category_id || ""}`;
             const statusList = workStatusMap[cacheKey] || [
               "In attesa",
@@ -254,7 +238,6 @@ export default function OrdersList() {
           })}
         </tbody>
       </table>
-
       {/* Etichette nascoste */}
       {filtrati.map(o => (
         <div
