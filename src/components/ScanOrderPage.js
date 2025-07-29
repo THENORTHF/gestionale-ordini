@@ -1,4 +1,3 @@
-// src/components/ScanOrderPage.js
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Barcode from 'react-barcode';
@@ -9,12 +8,16 @@ const API = process.env.REACT_APP_API_URL;
 
 export default function ScanOrderPage() {
   const { barcode: scannedBarcode } = useParams();
-  const navigate        = useNavigate();
-  const { user }        = useContext(AuthContext);
-  const [order, setOrder]   = useState(null);
+  const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+
+  const [order, setOrder] = useState(null);
   const [status, setStatus] = useState('');
-  const [notes, setNotes]   = useState('');
-  const [error, setError]   = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+  const [workStatuses, setWorkStatuses] = useState([
+    "In attesa", "In lavorazione 1", "In lavorazione 2", "Pronto", "Consegnato"
+  ]);
 
   // 1) Fetch dettaglio ordine
   useEffect(() => {
@@ -22,22 +25,27 @@ export default function ScanOrderPage() {
       setError("Barcode mancante!");
       return;
     }
-    console.log(">> Barcode param:", scannedBarcode);
-
     fetch(`${API}/api/orders/barcode/${scannedBarcode}`)
       .then(res => {
-        console.log(">> Fetch status:", res.status);
         if (!res.ok) throw new Error('Ordine non trovato');
         return res.json();
       })
       .then(o => {
-        console.log(">> Ordine caricato:", o);
         setOrder(o);
         setStatus(o.status || 'In attesa');
         setNotes(o.custom_notes || '');
+
+        // Dopo aver caricato l'ordine, carica anche gli stati custom
+        fetch(`${API}/api/work-statuses?productTypeId=${o.product_type_id}&subCategoryId=${o.sub_category_id || ""}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.status_list) {
+              setWorkStatuses(JSON.parse(data.status_list));
+            }
+          })
+          .catch(() => {}); // Se errore, usa default
       })
       .catch(err => {
-        console.error(">> Errore fetch ordine:", err);
         setError('Errore nel recupero dell’ordine');
       });
   }, [scannedBarcode]);
@@ -115,12 +123,10 @@ export default function ScanOrderPage() {
     );
   }
 
-  // Fase di caricamento ordine
   if (!order) {
     return <p style={{ padding: 20 }}>Caricamento ordine…</p>;
   }
 
-  // Fase dettaglio + form
   return (
     <div style={{ maxWidth: 600, margin: 'auto', padding: 20 }}>
       <h2>Ordine #{order.id}</h2>
@@ -141,11 +147,9 @@ export default function ScanOrderPage() {
             onChange={e => setStatus(e.target.value)}
             style={{ marginLeft: 8, padding: 4 }}
           >
-            <option>In attesa</option>
-            <option>In lavorazione 1</option>
-            <option>In lavorazione 2</option>
-            <option>Pronto</option>
-            <option>Consegnato</option>
+            {workStatuses.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </label>
       </div>
