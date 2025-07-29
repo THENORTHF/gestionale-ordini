@@ -1,3 +1,4 @@
+// src/components/ScanOrderPage.js
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Barcode from 'react-barcode';
@@ -19,12 +20,16 @@ export default function ScanOrderPage() {
     "In attesa", "In lavorazione 1", "In lavorazione 2", "Pronto", "Consegnato"
   ]);
 
-  // 1) Fetch dettaglio ordine
+  // Carica dettagli ordine E stati custom
   useEffect(() => {
     if (!scannedBarcode) {
       setError("Barcode mancante!");
       return;
     }
+
+    let productTypeId, subCategoryId;
+
+    // Fetch dettagli ordine
     fetch(`${API}/api/orders/barcode/${scannedBarcode}`)
       .then(res => {
         if (!res.ok) throw new Error('Ordine non trovato');
@@ -35,22 +40,36 @@ export default function ScanOrderPage() {
         setStatus(o.status || 'In attesa');
         setNotes(o.custom_notes || '');
 
+        productTypeId = o.product_type_id || o.productTypeId;
+        subCategoryId = o.sub_category_id || o.subCategoryId || "";
+
         // Dopo aver caricato l'ordine, carica anche gli stati custom
-        fetch(`${API}/api/work-statuses?productTypeId=${o.product_type_id}&subCategoryId=${o.sub_category_id || ""}`)
-          .then(r => r.json())
-          .then(data => {
-            if (data.status_list) {
-              setWorkStatuses(JSON.parse(data.status_list));
-            }
-          })
-          .catch(() => {}); // Se errore, usa default
+        return fetch(
+          `${API}/api/work-statuses?productTypeId=${productTypeId}&subCategoryId=${subCategoryId || ""}`
+        );
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status_list) {
+          try {
+            setWorkStatuses(JSON.parse(data.status_list));
+          } catch {
+            setWorkStatuses([
+              "In attesa", "In lavorazione 1", "In lavorazione 2", "Pronto", "Consegnato"
+            ]);
+          }
+        } else {
+          setWorkStatuses([
+            "In attesa", "In lavorazione 1", "In lavorazione 2", "Pronto", "Consegnato"
+          ]);
+        }
       })
       .catch(err => {
-        setError('Errore nel recupero dell’ordine');
+        setError('Errore nel recupero dell’ordine o degli stati di lavorazione');
       });
   }, [scannedBarcode]);
 
-  // 2) Salvataggio modifiche
+  // Salvataggio modifiche
   const handleSave = async () => {
     if (!order) return;
     try {
@@ -73,7 +92,7 @@ export default function ScanOrderPage() {
     }
   };
 
-  // 3) Stampa / download etichetta (restano uguali)
+  // Stampa / download etichetta
   const printLabel = () => {
     const el = document.getElementById('scan-label');
     if (!el) return;
@@ -113,7 +132,6 @@ export default function ScanOrderPage() {
   };
 
   // --- RENDER ---
-
   if (error) {
     return (
       <div style={{ padding: 20 }}>
