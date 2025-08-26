@@ -5,6 +5,10 @@ import QRCode from "react-qr-code";
 
 const API = process.env.REACT_APP_API_URL;
 
+// Ruolo: qui uso una regola semplice (username salvato al login).
+// Se hai già un contesto auth/ruoli, sostituisci questa funzione.
+const isAdmin = () => localStorage.getItem("username") === "admin";
+
 export default function OrdersList() {
   const [ordini, setOrdini] = useState([]);
   const [selezionati, setSelezionati] = useState(new Set());
@@ -54,7 +58,7 @@ export default function OrdersList() {
       }
       setWorkStatusMap(updated);
     })();
-  }, [ordini]);
+  }, [ordini]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtrati = ordini.filter(o => {
     const created = new Date(o.created_at).toISOString().slice(0, 10);
@@ -159,6 +163,32 @@ export default function OrdersList() {
     }
   };
 
+  // PATCH manual price (solo admin lato UI)
+  async function patchManualPrice(id, value) {
+    try {
+      const body = { manualPrice: value === "" ? null : Number(value) };
+      const res = await fetch(`${API}/api/orders/${id}/price`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Errore aggiornamento prezzo");
+      }
+      // Non sovrascrivo tutto l'ordine (la PATCH non ritorna i join),
+      // aggiorno localmente solo i campi di prezzo.
+      setOrdini(prev => prev.map(o => {
+        if (o.id !== id) return o;
+        const newManual = (value === "" ? null : Number(value));
+        const eff = (newManual != null) ? newManual : Number(o.price_total || 0);
+        return { ...o, manual_price: newManual, effective_price: eff };
+      }));
+    } catch (e) {
+      alert(e.message || "Errore aggiornamento prezzo");
+    }
+  }
+
   return (
     <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
       <h1>Elenco Ordini</h1>
@@ -188,18 +218,34 @@ export default function OrdersList() {
       <table width="100%" border="1" cellPadding="6" style={{ borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th><input
-              type="checkbox"
-              onChange={e =>
-                setSelezionati(e.target.checked
-                  ? new Set(filtrati.map(o => o.id))
-                  : new Set()
-                )
-              }
-            /></th>
-            <th>ID</th><th>Cliente</th><th>Tel</th><th>Indirizzo</th><th>Tipo</th>
-            <th>Sottocat.</th><th>Qty</th><th>Colore</th><th>Dim</th><th>Prezzo</th>
-            <th>Note</th><th>Data</th><th>Stato</th><th>QR</th>
+            <th>
+              <input
+                type="checkbox"
+                onChange={e =>
+                  setSelezionati(e.target.checked
+                    ? new Set(filtrati.map(o => o.id))
+                    : new Set()
+                  )
+                }
+              />
+            </th>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>Tel</th>
+            <th>Indirizzo</th>
+            <th>Tipo</th>
+            <th>Sottocat.</th>
+            <th>Qty</th>
+            <th>Colore</th>
+            <th>Dim</th>
+
+            {/* Prezzo: per admin è editabile (manuale), per operai mostra solo effettivo */}
+            {isAdmin() ? <th>Prezzo (Manuale / Eff.)</th> : <th>Prezzo</th>}
+
+            <th>Note</th>
+            <th>Data</th>
+            <th>Stato</th>
+            <th>QR</th>
           </tr>
         </thead>
         <tbody>
@@ -212,6 +258,10 @@ export default function OrdersList() {
               "Pronto",
               "Consegnato"
             ];
+            const effective = (o.manual_price != null)
+              ? Number(o.manual_price)
+              : Number(o.effective_price != null ? o.effective_price : o.price_total || 0);
+
             return (
               <tr key={o.id} style={{
                 backgroundColor: o.status === "Scaricato"
@@ -236,7 +286,29 @@ export default function OrdersList() {
                 <td>{o.quantity}</td>
                 <td>{o.color}</td>
                 <td>{o.dimensions}</td>
-                <td>€{Number(o.price_total).toFixed(2)}</td>
+
+                {/* Cella PREZZO */}
+                {isAdmin() ? (
+                  <td>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={o.manual_price ?? ""}
+                        placeholder={o.manual_price == null ? (o.price_total ?? "") : ""}
+                        onBlur={(e) => patchManualPrice(o.id, e.target.value)}
+                        style={{ width: 110 }}
+                      />
+                      <div style={{ fontSize: 12, opacity: 0.75 }}>
+                        eff.: {effective.toFixed(2)} €
+                      </div>
+                    </div>
+                  </td>
+                ) : (
+                  <td>€{effective.toFixed(2)}</td>
+                )}
+
                 <td>{o.custom_notes}</td>
                 <td>{new Date(o.created_at).toLocaleDateString()}</td>
                 <td>
@@ -259,6 +331,7 @@ export default function OrdersList() {
           })}
         </tbody>
       </table>
+
       {/* Etichette nascoste */}
       {filtrati.map(o => (
         <div
