@@ -3,6 +3,10 @@ import React, { useState, useEffect } from "react";
 
 const API = process.env.REACT_APP_API_URL;
 
+// Ruolo semplice basato sullo username salvato al login.
+// Sostituisci con il tuo sistema di auth se ne hai uno.
+const isAdmin = () => localStorage.getItem("username") === "admin";
+
 export default function OrdersDashboard() {
   const [cliente, setCliente] = useState("");
   const [quantita, setQuantita] = useState(1);
@@ -15,6 +19,7 @@ export default function OrdersDashboard() {
   const [personalizzazioni, setPersonalizzazioni] = useState("");
   const [telefono, setTelefono] = useState("");
   const [indirizzo, setIndirizzo] = useState("");
+  const [prezzoManuale, setPrezzoManuale] = useState(""); // <-- nuovo (solo admin)
   const [ordini, setOrdini] = useState([]);
   const [multiOrdine, setMultiOrdine] = useState(false);
 
@@ -39,7 +44,7 @@ export default function OrdersDashboard() {
       .catch(console.error);
   }, [tipoSelezionato]);
 
-  // Carica ordini esistenti
+  // Carica ordini esistenti (facoltativo, per popolare la lista sotto)
   useEffect(() => {
     fetch(`${API}/api/orders`)
       .then(res => res.json())
@@ -54,29 +59,48 @@ export default function OrdersDashboard() {
       return;
     }
     try {
+      const payload = {
+        customerName: cliente,
+        productTypeId: tipoSelezionato,
+        subCategoryId: sottocategoria || null,
+        dimensions: dimensioni,
+        color: colore,
+        customNotes: personalizzazioni,
+        quantity: quantita,
+        phoneNumber: telefono || null,
+        address: indirizzo || null
+      };
+
+      // Se admin e compilato, includo manualPrice
+      if (isAdmin() && prezzoManuale !== "") {
+        payload.manualPrice = Number(prezzoManuale);
+      }
+
       const res = await fetch(`${API}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: cliente,
-          productTypeId: tipoSelezionato,
-          subCategoryId: sottocategoria || null,
-          dimensions: dimensioni,
-          color: colore,
-          customNotes: personalizzazioni,
-          quantity: quantita,
-          phoneNumber: telefono || null,
-          address: indirizzo || null
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const created = await res.json();
-      setOrdini(prev => [created, ...prev]);
+
+      // Calcolo prezzo effettivo lato FE (perché la POST non ritorna effective_price)
+      const effective = created.manual_price != null
+        ? Number(created.manual_price)
+        : Number(created.price_total || 0);
+
+      setOrdini(prev => [
+        { ...created, effective_price: effective }, // arricchito per la lista
+        ...prev
+      ]);
+
       // reset campi: logica multi ordine
       if (multiOrdine) {
         setQuantita(1);
         setDimensioni("");
         setPersonalizzazioni("");
+        if (isAdmin()) setPrezzoManuale("");
       } else {
         setCliente("");
         setQuantita(1);
@@ -87,9 +111,11 @@ export default function OrdersDashboard() {
         setPersonalizzazioni("");
         setTelefono("");
         setIndirizzo("");
+        if (isAdmin()) setPrezzoManuale("");
       }
+
       alert(
-        `Ordine aggiunto!\nID: ${created.id}\nPrezzo totale: €${Number(created.price_total).toFixed(2)}`
+        `Ordine aggiunto!\nID: ${created.id}\nPrezzo effettivo: €${effective.toFixed(2)}`
       );
     } catch (err) {
       console.error(err);
@@ -176,6 +202,24 @@ export default function OrdersDashboard() {
         style={{ width: "100%", padding: 8, marginBottom: 10 }}
       />
 
+      {/* Prezzo manuale (solo admin) */}
+      {isAdmin() && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: "block", marginBottom: 6 }}>
+            Prezzo manuale (€) — opzionale
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="lascia vuoto per calcolo automatico"
+            value={prezzoManuale}
+            onChange={e => setPrezzoManuale(e.target.value)}
+            style={{ width: "100%", padding: 8 }}
+          />
+        </div>
+      )}
+
       {/* Checkbox Multi Ordine */}
       <label style={{ display: 'block', marginBottom: 20 }}>
         <input
@@ -196,35 +240,47 @@ export default function OrdersDashboard() {
 
       <h2>Ordini Salvati</h2>
       <ul style={{ listStyle: "none", paddingLeft: 0 }}>
-        {ordini.map(o => (
-          <li
-            key={o.id}
-            style={{ border: "1px solid #ccc", padding: 10, marginBottom: 10 }}
-          >
-            <strong>ID {o.id}</strong> – Cliente: {o.customer_name}
-            {o.phone_number && ` – Tel: ${o.phone_number}`}
-            {o.address && ` – Ind: ${o.address}`}
-            – Tipo: {o.product_type_name}
-            {o.sub_category_name && ` (${o.sub_category_name})`} – Qty: {o.quantity}
-            <br />
-            Colore: {o.color} – Dim: {o.dimensions}
-            <br />
-            Note: {o.custom_notes}
-            <br />
-            <strong>Prezzo:</strong> €{Number(o.price_total).toFixed(2)}
-            <div style={{ marginTop: 8 }}>
-              <button onClick={() => window.print()} style={{ marginRight: 8 }}>
-                Stampa
-              </button>
-              <button onClick={async () => {
-                await fetch(`${API}/api/orders/${o.id}`, { method: 'DELETE' });
-                setOrdini(prev => prev.filter(x => x.id !== o.id));
-              }}>
-                Elimina
-              </button>
-            </div>
-          </li>
-        ))}
+        {ordini.map(o => {
+          const effective = o.effective_price != null
+            ? Number(o.effective_price)
+            : Number((o.manual_price ?? o.price_total) || 0);
+
+          return (
+            <li
+              key={o.id}
+              style={{ border: "1px solid #ccc", padding: 10, marginBottom: 10 }}
+            >
+              <strong>ID {o.id}</strong> – Cliente: {o.customer_name}
+              {o.phone_number && ` – Tel: ${o.phone_number}`}
+              {o.address && ` – Ind: ${o.address}`}
+              {o.product_type_name && ` – Tipo: ${o.product_type_name}`}
+              {o.sub_category_name && ` (${o.sub_category_name})`} – Qty: {o.quantity}
+              <br />
+              Colore: {o.color} – Dim: {o.dimensions}
+              <br />
+              Note: {o.custom_notes}
+              <br />
+              {o.manual_price != null && (
+                <span><strong>Prezzo manuale:</strong> €{Number(o.manual_price).toFixed(2)} – </span>
+              )}
+              <strong>Prezzo effettivo:</strong> €{effective.toFixed(2)}
+              {o.manual_price == null && (
+                <span> <em>(calcolato: €{Number(o.price_total || 0).toFixed(2)})</em></span>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => window.print()} style={{ marginRight: 8 }}>
+                  Stampa
+                </button>
+                <button onClick={async () => {
+                  await fetch(`${API}/api/orders/${o.id}`, { method: 'DELETE' });
+                  setOrdini(prev => prev.filter(x => x.id !== o.id));
+                }}>
+                  Elimina
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
