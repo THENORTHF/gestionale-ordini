@@ -5,8 +5,7 @@ import QRCode from "react-qr-code";
 
 const API = process.env.REACT_APP_API_URL;
 
-// Ruolo: qui uso una regola semplice (username salvato al login).
-// Se hai già un contesto auth/ruoli, sostituisci questa funzione.
+// helper per ruolo (usa username salvato al login)
 const isAdmin = () => localStorage.getItem("username") === "admin";
 
 export default function OrdersList() {
@@ -22,6 +21,7 @@ export default function OrdersList() {
   });
   const [workStatusMap, setWorkStatusMap] = useState({});
 
+  // carica ordini
   useEffect(() => {
     fetch(`${API}/api/orders`)
       .then(res => res.json())
@@ -29,6 +29,7 @@ export default function OrdersList() {
       .catch(console.error);
   }, []);
 
+  // carica stati lavorazione
   useEffect(() => {
     if (!ordini.length) return;
     const toFetch = [];
@@ -58,8 +59,9 @@ export default function OrdersList() {
       }
       setWorkStatusMap(updated);
     })();
-  }, [ordini]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ordini, workStatusMap]);
 
+  // filtri
   const filtrati = ordini.filter(o => {
     const created = new Date(o.created_at).toISOString().slice(0, 10);
     return (
@@ -93,7 +95,6 @@ export default function OrdersList() {
     }
   };
 
-  // Aggiorna stato in "Scaricato" dopo stampa/scarica
   const markDownloaded = async id => {
     try {
       const res = await fetch(`${API}/api/orders/${id}/status`, {
@@ -103,9 +104,7 @@ export default function OrdersList() {
       });
       if (!res.ok) throw new Error();
       setOrdini(prev => prev.map(o => o.id === id ? { ...o, status: "Scaricato" } : o));
-    } catch {
-      // Se errore, non bloccare la stampa/scarica
-    }
+    } catch {}
   };
 
   const printLabel = async id => {
@@ -127,9 +126,7 @@ export default function OrdersList() {
     if (!arr.length) return;
 
     if (azione === "stampa") {
-      for (const id of arr) {
-        await printLabel(id);
-      }
+      for (const id of arr) await printLabel(id);
     }
     if (azione === "scarica") {
       for (const id of arr) {
@@ -149,8 +146,6 @@ export default function OrdersList() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-
-        // Aggiorna stato dopo download
         await markDownloaded(id);
       }
     }
@@ -163,7 +158,7 @@ export default function OrdersList() {
     }
   };
 
-  // PATCH manual price (solo admin lato UI)
+  // PATCH manual price (solo admin)
   async function patchManualPrice(id, value) {
     try {
       const body = { manualPrice: value === "" ? null : Number(value) };
@@ -176,8 +171,6 @@ export default function OrdersList() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Errore aggiornamento prezzo");
       }
-      // Non sovrascrivo tutto l'ordine (la PATCH non ritorna i join),
-      // aggiorno localmente solo i campi di prezzo.
       setOrdini(prev => prev.map(o => {
         if (o.id !== id) return o;
         const newManual = (value === "" ? null : Number(value));
@@ -238,10 +231,7 @@ export default function OrdersList() {
             <th>Qty</th>
             <th>Colore</th>
             <th>Dim</th>
-
-            {/* Prezzo: per admin è editabile (manuale), per operai mostra solo effettivo */}
             {isAdmin() ? <th>Prezzo (Manuale / Eff.)</th> : <th>Prezzo</th>}
-
             <th>Note</th>
             <th>Data</th>
             <th>Stato</th>
@@ -252,11 +242,7 @@ export default function OrdersList() {
           {filtrati.map(o => {
             const cacheKey = `${o.product_type_id}_${o.sub_category_id || ""}`;
             const statusList = workStatusMap[cacheKey] || [
-              "In attesa",
-              "In lavorazione 1",
-              "In lavorazione 2",
-              "Pronto",
-              "Consegnato"
+              "In attesa","In lavorazione 1","In lavorazione 2","Pronto","Consegnato"
             ];
             const effective = (o.manual_price != null)
               ? Number(o.manual_price)
@@ -286,8 +272,6 @@ export default function OrdersList() {
                 <td>{o.quantity}</td>
                 <td>{o.color}</td>
                 <td>{o.dimensions}</td>
-
-                {/* Cella PREZZO */}
                 {isAdmin() ? (
                   <td>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -308,7 +292,6 @@ export default function OrdersList() {
                 ) : (
                   <td>€{effective.toFixed(2)}</td>
                 )}
-
                 <td>{o.custom_notes}</td>
                 <td>{new Date(o.created_at).toLocaleDateString()}</td>
                 <td>
