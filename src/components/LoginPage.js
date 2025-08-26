@@ -38,6 +38,13 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const userData = await loginWorker(username, code);
+
+      // ✅ salva username in localStorage (serve per riconoscere l'admin nel FE)
+      if (userData?.username) {
+        localStorage.setItem('username', userData.username);
+      }
+
+      // mantieni il tuo flusso esistente
       login(userData);
       navigate('/list', { replace: true });
     } catch (err) {
