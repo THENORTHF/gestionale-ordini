@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import domtoimage from "dom-to-image-more";
 import QRCode from "react-qr-code";
 
 const API = process.env.REACT_APP_API_URL;
 
-// helper per ruolo (usa username salvato al login)
+// helper ruolo (semplice): usa username salvato al login
 const isAdmin = () => localStorage.getItem("username") === "admin";
 
 export default function OrdersList() {
@@ -14,12 +14,17 @@ export default function OrdersList() {
   const [filters, setFilters] = useState({
     cliente: "",
     tipo: "",
+    sottocat: "", // <-- nuovo filtro sottocategoria
     colore: "",
     dim: "",
     startDate: "",
     endDate: ""
   });
   const [workStatusMap, setWorkStatusMap] = useState({});
+
+  // drag selection
+  const [isDragging, setIsDragging] = useState(false);
+  const dragTargetStateRef = useRef(true); // true = seleziona, false = deseleziona durante il drag
 
   // carica ordini
   useEffect(() => {
@@ -29,7 +34,7 @@ export default function OrdersList() {
       .catch(console.error);
   }, []);
 
-  // carica stati lavorazione
+  // carica stati lavorazione (cache per coppia tipo+sottocat)
   useEffect(() => {
     if (!ordini.length) return;
     const toFetch = [];
@@ -61,25 +66,66 @@ export default function OrdersList() {
     })();
   }, [ordini, workStatusMap]);
 
-  // filtri
-  const filtrati = ordini.filter(o => {
-    const created = new Date(o.created_at).toISOString().slice(0, 10);
-    return (
-      (!filters.cliente   || o.customer_name?.toLowerCase().includes(filters.cliente.toLowerCase())) &&
-      (!filters.tipo      || o.product_type_name?.toLowerCase().includes(filters.tipo.toLowerCase())) &&
-      (!filters.colore    || o.color?.toLowerCase().includes(filters.colore.toLowerCase())) &&
-      (!filters.dim       || o.dimensions?.toLowerCase().includes(filters.dim.toLowerCase())) &&
-      (!filters.startDate || created >= filters.startDate) &&
-      (!filters.endDate   || created <= filters.endDate)
-    );
-  });
+  // opzioni sottocategoria per filtro (derivate dai dati)
+  const sottocategorieOptions = useMemo(() => {
+    const set = new Set();
+    ordini.forEach(o => {
+      if (o.sub_category_name) set.add(o.sub_category_name);
+    });
+    return Array.from(set).sort();
+  }, [ordini]);
 
+  // lista filtrata
+  const filtrati = useMemo(() => {
+    return ordini.filter(o => {
+      const created = new Date(o.created_at).toISOString().slice(0, 10);
+      return (
+        (!filters.cliente   || o.customer_name?.toLowerCase().includes(filters.cliente.toLowerCase())) &&
+        (!filters.tipo      || o.product_type_name?.toLowerCase().includes(filters.tipo.toLowerCase())) &&
+        (!filters.sottocat  || o.sub_category_name === filters.sottocat) &&
+        (!filters.colore    || o.color?.toLowerCase().includes(filters.colore.toLowerCase())) &&
+        (!filters.dim       || o.dimensions?.toLowerCase().includes(filters.dim.toLowerCase())) &&
+        (!filters.startDate || created >= filters.startDate) &&
+        (!filters.endDate   || created <= filters.endDate)
+      );
+    });
+  }, [ordini, filters]);
+
+  // selezione toggle
   const toggleSelezione = id => {
     const nuovo = new Set(selezionati);
     if (nuovo.has(id)) nuovo.delete(id);
     else nuovo.add(id);
     setSelezionati(nuovo);
   };
+
+  // drag: mousedown su riga
+  const handleRowMouseDown = (id) => {
+    const currentlySelected = selezionati.has(id);
+    dragTargetStateRef.current = !currentlySelected; // se non era selezionata, drag seleziona; se era, drag deseleziona
+    setIsDragging(true);
+
+    const nuovo = new Set(selezionati);
+    if (dragTargetStateRef.current) nuovo.add(id);
+    else nuovo.delete(id);
+    setSelezionati(nuovo);
+  };
+
+  // drag: mouseenter su riga
+  const handleRowMouseEnter = (id) => {
+    if (!isDragging) return;
+    const nuovo = new Set(selezionati);
+    if (dragTargetStateRef.current) nuovo.add(id);
+    else nuovo.delete(id);
+    setSelezionati(nuovo);
+  };
+
+  // drag: mouseup globale
+  useEffect(() => {
+    const onUp = () => setIsDragging(false);
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
 
   const updateStatus = async (id, newStatus) => {
     try {
@@ -182,33 +228,144 @@ export default function OrdersList() {
     }
   }
 
+  // ESPORTA selezionati → CSV (compatibile Numbers/Excel)
+  const exportSelezionatiCSV = () => {
+    const ids = Array.from(selezionati);
+    if (!ids.length) {
+      alert("Seleziona almeno un ordine da esportare.");
+      return;
+    }
+    const rows = filtrati.filter(o => selezionati.has(o.id));
+
+    // definisci le colonne che vuoi esportare
+    const headers = [
+      "ID",
+      "Cliente",
+      "Telefono",
+      "Indirizzo",
+      "Tipo",
+      "Sottocategoria",
+      "Qty",
+      "Colore",
+      "Dimensioni",
+      "Prezzo_calcolato",
+      "Prezzo_manuale",
+      "Prezzo_effettivo",
+      "Note",
+      "Data",
+      "Stato",
+      "Barcode"
+    ];
+
+    const csvLines = [headers.join(",")];
+    rows.forEach(o => {
+      const prezzoCalcolato = Number(o.price_total || 0);
+      const prezzoManuale = o.manual_price != null ? Number(o.manual_price) : null;
+      const prezzoEff = prezzoManuale != null ? prezzoManuale :
+                        Number(o.effective_price != null ? o.effective_price : o.price_total || 0);
+
+      const line = [
+        o.id,
+        csvEscape(o.customer_name),
+        csvEscape(o.phone_number || ""),
+        csvEscape(o.address || ""),
+        csvEscape(o.product_type_name || ""),
+        csvEscape(o.sub_category_name || ""),
+        o.quantity ?? 1,
+        csvEscape(o.color || ""),
+        csvEscape(o.dimensions || ""),
+        prezzoCalcolato.toFixed(2),
+        prezzoManuale != null ? prezzoManuale.toFixed(2) : "",
+        prezzoEff.toFixed(2),
+        csvEscape(o.custom_notes || ""),
+        new Date(o.created_at).toLocaleDateString(),
+        csvEscape(o.status || ""),
+        csvEscape(o.barcode || "")
+      ].join(",");
+      csvLines.push(line);
+    });
+
+    const csvContent = "\ufeff" + csvLines.join("\n"); // BOM per Numbers/Excel
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ordini-selezionati-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const csvEscape = (value) => {
+    const s = String(value ?? "");
+    if (/[",\n]/.test(s)) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  // UI
   return (
-    <div style={{ maxWidth: 1000, margin: "auto", padding: 20 }}>
+    <div style={{ maxWidth: 1100, margin: "auto", padding: 20 }}>
       <h1>Elenco Ordini</h1>
+
+      {/* FILTRI */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        {["cliente","tipo","colore","dim"].map(key => (
-          <input
-            key={key}
-            placeholder={key.charAt(0).toUpperCase()+key.slice(1)}
-            value={filters[key]}
-            onChange={e => setFilters({ ...filters, [key]: e.target.value })}
-          />
-        ))}
-        <input type="date" value={filters.startDate}
-          onChange={e => setFilters({ ...filters, startDate: e.target.value })} />
-        <input type="date" value={filters.endDate}
-          onChange={e => setFilters({ ...filters, endDate: e.target.value })} />
+        <input
+          placeholder="Cliente"
+          value={filters.cliente}
+          onChange={e => setFilters({ ...filters, cliente: e.target.value })}
+        />
+        <input
+          placeholder="Tipo"
+          value={filters.tipo}
+          onChange={e => setFilters({ ...filters, tipo: e.target.value })}
+        />
+        {/* filtro sottocategoria */}
+        <select
+          value={filters.sottocat}
+          onChange={e => setFilters({ ...filters, sottocat: e.target.value })}
+        >
+          <option value="">Tutte le sottocategorie</option>
+          {sottocategorieOptions.map(name => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <input
+          placeholder="Colore"
+          value={filters.colore}
+          onChange={e => setFilters({ ...filters, colore: e.target.value })}
+        />
+        <input
+          placeholder="Dim"
+          value={filters.dim}
+          onChange={e => setFilters({ ...filters, dim: e.target.value })}
+        />
+        <input
+          type="date"
+          value={filters.startDate}
+          onChange={e => setFilters({ ...filters, startDate: e.target.value })}
+        />
+        <input
+          type="date"
+          value={filters.endDate}
+          onChange={e => setFilters({ ...filters, endDate: e.target.value })}
+        />
       </div>
-      <div style={{ marginBottom: 10 }}>
+
+      {/* AZIONI */}
+      <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={() => azioneMultipla("stampa")}>Stampa</button>
-        <button onClick={() => azioneMultipla("scarica")} style={{ marginLeft: 8 }}>
-          Scarica
-        </button>
-        <button onClick={() => azioneMultipla("elimina")} style={{ marginLeft: 8 }}>
-          Elimina
+        <button onClick={() => azioneMultipla("scarica")}>Scarica</button>
+        <button onClick={() => azioneMultipla("elimina")}>Elimina</button>
+        <button onClick={exportSelezionatiCSV} style={{ marginLeft: "auto" }}>
+          Esporta selezionati (CSV)
         </button>
       </div>
-      <table width="100%" border="1" cellPadding="6" style={{ borderCollapse: "collapse" }}>
+
+      {/* TABELLA */}
+      <table width="100%" border="1" cellPadding="6" style={{ borderCollapse: "collapse", userSelect: "none" }}>
         <thead>
           <tr>
             <th>
@@ -220,6 +377,8 @@ export default function OrdersList() {
                     : new Set()
                   )
                 }
+                checked={filtrati.length > 0 && filtrati.every(o => selezionati.has(o.id))}
+                aria-label="Seleziona tutti filtrati"
               />
             </th>
             <th>ID</th>
@@ -238,7 +397,9 @@ export default function OrdersList() {
             <th>QR</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody
+          onMouseLeave={() => setIsDragging(false)}
+        >
           {filtrati.map(o => {
             const cacheKey = `${o.product_type_id}_${o.sub_category_id || ""}`;
             const statusList = workStatusMap[cacheKey] || [
@@ -248,19 +409,30 @@ export default function OrdersList() {
               ? Number(o.manual_price)
               : Number(o.effective_price != null ? o.effective_price : o.price_total || 0);
 
+            const isRowSelected = selezionati.has(o.id);
+
             return (
-              <tr key={o.id} style={{
-                backgroundColor: o.status === "Scaricato"
-                  ? "orange"
-                  : o.status?.includes("In lavorazione")
-                  ? "#fff9c4"
-                  : undefined
-              }}>
+              <tr
+                key={o.id}
+                style={{
+                  backgroundColor: isRowSelected
+                    ? "#e0f3ff"
+                    : o.status === "Scaricato"
+                      ? "orange"
+                      : o.status?.includes("In lavorazione")
+                        ? "#fff9c4"
+                        : undefined,
+                  cursor: "default"
+                }}
+                onMouseDown={() => handleRowMouseDown(o.id)}
+                onMouseEnter={() => handleRowMouseEnter(o.id)}
+              >
                 <td>
                   <input
                     type="checkbox"
-                    checked={selezionati.has(o.id)}
+                    checked={isRowSelected}
                     onChange={() => toggleSelezione(o.id)}
+                    onMouseDown={e => e.stopPropagation()}
                   />
                 </td>
                 <td>{o.id}</td>
@@ -282,7 +454,8 @@ export default function OrdersList() {
                         defaultValue={o.manual_price ?? ""}
                         placeholder={o.manual_price == null ? (o.price_total ?? "") : ""}
                         onBlur={(e) => patchManualPrice(o.id, e.target.value)}
-                        style={{ width: 110 }}
+                        style={{ width: 120 }}
+                        onMouseDown={e => e.stopPropagation()}
                       />
                       <div style={{ fontSize: 12, opacity: 0.75 }}>
                         eff.: {effective.toFixed(2)} €
@@ -298,6 +471,7 @@ export default function OrdersList() {
                   <select
                     value={o.status}
                     onChange={e => updateStatus(o.id, e.target.value)}
+                    onMouseDown={e => e.stopPropagation()}
                   >
                     {statusList.map(s => (
                       <option key={s} value={s}>{s}</option>
@@ -305,7 +479,7 @@ export default function OrdersList() {
                   </select>
                 </td>
                 <td style={{ textAlign: "center" }}>
-                  <Link to={`/scan/${o.barcode}`}>
+                  <Link to={`/scan/${o.barcode}`} onMouseDown={e => e.stopPropagation()}>
                     <QRCode value={o.barcode} size={80} />
                   </Link>
                 </td>
