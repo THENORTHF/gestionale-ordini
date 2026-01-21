@@ -1,6 +1,7 @@
 // src/components/SettingsPanel.js
 import React, { useState, useEffect } from "react";
 import WorkersPanel from "./WorkersPanel";
+import CustomersPanel from "./CustomersPanel";
 
 const API = process.env.REACT_APP_API_URL;
 
@@ -23,6 +24,9 @@ export default function SettingsPanel() {
         <button onClick={() => setActiveTab("priceLists")}>
           Listini
         </button>
+        <button onClick={() => setActiveTab("customers")}>
+          Clienti
+        </button>
         <button onClick={() => setActiveTab("workers")}>
           Operai
         </button>
@@ -35,6 +39,7 @@ export default function SettingsPanel() {
       {activeTab === "subCategories" && <SubCategoriesSection />}
       {activeTab === "colorIncrements" && <ColorIncrementsSection />}
       {activeTab === "priceLists" && <PriceListsSection />}
+      {activeTab === "customers" && <CustomersPanel />}
       {activeTab === "workers" && <WorkersPanel />}
       {activeTab === "workStatuses" && <WorkStatusesSection />}
     </div>

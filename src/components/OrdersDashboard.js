@@ -1,5 +1,6 @@
 // src/components/OrdersDashboard.js
 import React, { useState, useEffect } from "react";
+import CustomerAutocomplete from "./CustomerAutocomplete";
 
 const API = process.env.REACT_APP_API_URL;
 
@@ -9,6 +10,7 @@ const isAdmin = () => localStorage.getItem("username") === "admin";
 
 export default function OrdersDashboard() {
   const [cliente, setCliente] = useState("");
+  const [customerId, setCustomerId] = useState(null);
   const [quantita, setQuantita] = useState(1);
   const [productTypes, setProductTypes] = useState([]);
   const [tipoSelezionato, setTipoSelezionato] = useState("");
@@ -60,6 +62,7 @@ export default function OrdersDashboard() {
     }
     try {
       const payload = {
+        customerId: customerId,
         customerName: cliente,
         productTypeId: tipoSelezionato,
         subCategoryId: sottocategoria || null,
@@ -103,6 +106,7 @@ export default function OrdersDashboard() {
         if (isAdmin()) setPrezzoManuale("");
       } else {
         setCliente("");
+        setCustomerId(null);
         setQuantita(1);
         setTipoSelezionato("");
         setSottocategoria("");
@@ -127,11 +131,19 @@ export default function OrdersDashboard() {
     <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
       <h1>Nuovo Ordine</h1>
 
-      <input
-        placeholder="Nome Cliente"
+      <CustomerAutocomplete
         value={cliente}
-        onChange={e => setCliente(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 10 }}
+        onChange={(v) => {
+          setCliente(v);
+          // se l'utente digita manualmente, non è più una selezione "ufficiale"
+          setCustomerId(null);
+        }}
+        onSelect={(c) => {
+          setCustomerId(c.id);
+          setTelefono(c.phone_number || "");
+          setIndirizzo(c.address || "");
+        }}
+        placeholder="Nome Cliente"
       />
 
       <input
