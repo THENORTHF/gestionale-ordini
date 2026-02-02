@@ -75,6 +75,24 @@ function ProductTypesSection() {
     }
   };
 
+
+  const remove = async (id) => {
+    const ok = window.confirm("Eliminare questo tipo di prodotto? (Se è usato in ordini o sottocategorie potrebbe non essere possibile)");
+    if (!ok) return;
+    try {
+      const res = await fetch(`${API}/api/product-types/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}));
+        alert(msg.error || "Impossibile eliminare");
+        return;
+      }
+      setItems(items.filter(x => x.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Errore eliminazione");
+    }
+  };
+
   return (
     <div>
       <h2>Tipi di Prodotto</h2>
@@ -89,7 +107,12 @@ function ProductTypesSection() {
       </div>
       <ul>
         {items.length > 0
-          ? items.map(pt => <li key={pt.id}>{pt.name}</li>)
+          ? items.map(pt => (
+              <li key={pt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span>{pt.name}</span>
+                <button onClick={() => remove(pt.id)} style={{ background: "#fee", border: "1px solid #f99" }}>Elimina</button>
+              </li>
+            ))
           : <li>Nessun tipo disponibile</li>
         }
       </ul>
@@ -136,6 +159,24 @@ function SubCategoriesSection() {
     }
   };
 
+
+  const removeSub = async (id) => {
+    const ok = window.confirm("Eliminare questa sottocategoria? (Se è usata in ordini o listini potrebbe non essere possibile)");
+    if (!ok) return;
+    try {
+      const res = await fetch(`${API}/api/sub-categories/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}));
+        alert(msg.error || "Impossibile eliminare");
+        return;
+      }
+      setSubs(subs.filter(x => x.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Errore eliminazione");
+    }
+  };
+
   return (
     <div>
       <h2>Sottocategorie</h2>
@@ -160,7 +201,12 @@ function SubCategoriesSection() {
       </div>
       <ul>
         {subs.length > 0
-          ? subs.map(sc => <li key={sc.id}>{sc.name}</li>)
+          ? subs.map(sc => (
+              <li key={sc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span>{sc.name}</span>
+                <button onClick={() => removeSub(sc.id)} style={{ background: "#fee", border: "1px solid #f99" }}>Elimina</button>
+              </li>
+            ))
           : <li>Nessuna sottocategoria</li>
         }
       </ul>

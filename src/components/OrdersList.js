@@ -166,6 +166,141 @@ export default function OrdersList() {
     w.document.close();
     await markDownloaded(id);
   };
+  const printMultiOrder = async (ids) => {
+    // prendi gli ordini selezionati (solo quelli presenti in memoria)
+    const selectedOrders = ids
+      .map(id => ordini.find(o => o.id === id))
+      .filter(Boolean);
+
+    if (!selectedOrders.length) return;
+
+    // Verifica che siano dello stesso cliente (preferisci customer_id se presente)
+    const first = selectedOrders[0];
+    const sameCustomer = selectedOrders.every(o => {
+      if (first.customer_id && o.customer_id) return o.customer_id === first.customer_id;
+      return (o.customer_name || "").trim().toLowerCase() === (first.customer_name || "").trim().toLowerCase();
+    });
+
+    if (!sameCustomer) {
+      alert("Seleziona solo ordini dello stesso cliente per la stampa multiordine.");
+      return;
+    }
+
+    // Ordina per tipo/sottocategoria/id per avere una comanda più leggibile
+    selectedOrders.sort((a, b) => {
+      const ak = `${a.product_type_name || ""}-${a.sub_category_name || ""}-${a.id}`;
+      const bk = `${b.product_type_name || ""}-${b.sub_category_name || ""}-${b.id}`;
+      return ak.localeCompare(bk, "it");
+    });
+
+    const customerName = first.customer_name || "";
+    const phone = first.phone_number || "";
+    const address = first.address || "";
+    const today = new Date().toLocaleDateString("it-IT");
+
+    const rowsHtml = selectedOrders.map(o => {
+      const tipo = o.product_type_name || "";
+      const sotto = o.sub_category_name ? ` - ${o.sub_category_name}` : "";
+      const qty = o.quantity ?? 1;
+      const dim = o.dimensions || "";
+      const col = o.color || "";
+      const note = (o.custom_notes || "").trim();
+      return `
+        <div class="item">
+          <div class="item-line">
+            <span class="item-title">${tipo}${sotto}</span>
+          </div>
+          <div class="item-meta">
+            <span><b>Q.tà:</b> ${qty} pz</span>
+            <span><b>Misure:</b> ${dim}</span>
+            <span><b>Colore:</b> ${col}</span>
+          </div>
+          ${note ? `<div class="item-note"><b>Note:</b> ${note}</div>` : ``}
+        </div>
+      `;
+    }).join("");
+
+    const html = `
+      <html>
+        <head>
+          <title>Comanda - ${customerName}</title>
+          <meta charset="utf-8" />
+          <style>
+            @page { size: A4; margin: 14mm; }
+            body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #000; }
+            .wrap { width: 100%; }
+            .top {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #000;
+              padding-bottom: 10px;
+              margin-bottom: 14px;
+            }
+            .title {
+              font-size: 34px;
+              font-weight: 900;
+              letter-spacing: 1px;
+              line-height: 1;
+            }
+            .date { font-size: 16px; margin-top: 6px; }
+            .customer {
+              margin: 8px 0 16px 0;
+              padding: 10px 12px;
+              border: 2px solid #000;
+              border-radius: 6px;
+            }
+            .customer-name { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+            .customer-row { font-size: 18px; line-height: 1.35; }
+            .items { margin-top: 10px; }
+            .item { padding: 10px 0; border-bottom: 1px solid #bbb; }
+            .item-title { font-size: 22px; font-weight: 800; }
+            .item-meta {
+              margin-top: 6px;
+              font-size: 18px;
+              display: flex;
+              flex-wrap: wrap;
+              gap: 16px;
+            }
+            .item-note { margin-top: 6px; font-size: 18px; }
+            .footer { margin-top: 16px; font-size: 14px; opacity: 0.8; }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <div class="top">
+              <div>
+                <div class="title">COMANDA</div>
+                <div class="date">${today}</div>
+              </div>
+            </div>
+
+            <div class="customer">
+              <div class="customer-name">${customerName}</div>
+              <div class="customer-row"><b>INDIRIZZO:</b> ${address || "—"}</div>
+              <div class="customer-row"><b>TEL:</b> ${phone || "—"}</div>
+            </div>
+
+            <div class="items">
+              ${rowsHtml}
+            </div>
+
+            <div class="footer">Generato dal Gestionale Ordini</div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); window.close(); };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+  };
+
 
   const azioneMultipla = async azione => {
     const arr = Array.from(selezionati);
@@ -173,6 +308,9 @@ export default function OrdersList() {
 
     if (azione === "stampa") {
       for (const id of arr) await printLabel(id);
+    }
+    if (azione === "stampa_multi") {
+      await printMultiOrder(arr);
     }
     if (azione === "scarica") {
       for (const id of arr) {
@@ -357,6 +495,7 @@ export default function OrdersList() {
       {/* AZIONI */}
       <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={() => azioneMultipla("stampa")}>Stampa</button>
+        <button onClick={() => azioneMultipla("stampa_multi")}>Stampa Multiordine</button>
         <button onClick={() => azioneMultipla("scarica")}>Scarica</button>
         <button onClick={() => azioneMultipla("elimina")}>Elimina</button>
         <button onClick={exportSelezionatiCSV} style={{ marginLeft: "auto" }}>
