@@ -1,4 +1,3 @@
-/opt/homebrew/Library/Homebrew/cmd/shellenv.sh: line 18: /bin/ps: Operation not permitted
 // src/components/OrdersDashboard.js
 import React, { useState, useEffect } from "react";
 import CustomerAutocomplete from "./CustomerAutocomplete";

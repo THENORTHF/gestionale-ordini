@@ -1,4 +1,3 @@
-/opt/homebrew/Library/Homebrew/cmd/shellenv.sh: line 18: /bin/ps: Operation not permitted
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import domtoimage from "dom-to-image-more";
