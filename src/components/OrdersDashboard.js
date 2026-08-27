@@ -1,3 +1,4 @@
+/opt/homebrew/Library/Homebrew/cmd/shellenv.sh: line 18: /bin/ps: Operation not permitted
 // src/components/OrdersDashboard.js
 import React, { useState, useEffect } from "react";
 import CustomerAutocomplete from "./CustomerAutocomplete";
@@ -16,7 +17,8 @@ export default function OrdersDashboard() {
   const [tipoSelezionato, setTipoSelezionato] = useState("");
   const [subCategories, setSubCategories] = useState([]);
   const [sottocategoria, setSottocategoria] = useState("");
-  const [dimensioni, setDimensioni] = useState("");
+  const [altezza, setAltezza] = useState("");
+  const [larghezza, setLarghezza] = useState("");
   const [colore, setColore] = useState("");
   const [personalizzazioni, setPersonalizzazioni] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -56,8 +58,8 @@ export default function OrdersDashboard() {
 
   // Invia nuovo ordine
   const handleSubmit = async () => {
-    if (!cliente.trim() || !tipoSelezionato || !dimensioni.trim() || quantita < 1) {
-      alert("Compila almeno cliente, tipo, dimensioni e quantità");
+    if (!cliente.trim() || !tipoSelezionato || !(Number(altezza) > 0) || !(Number(larghezza) > 0) || quantita < 1) {
+      alert("Compila almeno cliente, tipo, altezza, larghezza e quantità");
       return;
     }
     try {
@@ -66,7 +68,9 @@ export default function OrdersDashboard() {
         customerName: cliente,
         productTypeId: tipoSelezionato,
         subCategoryId: sottocategoria || null,
-        dimensions: dimensioni,
+        heightCm: Number(altezza),
+        widthCm: Number(larghezza),
+        dimensions: `${Number(altezza)} x ${Number(larghezza)}`,
         color: colore,
         customNotes: personalizzazioni,
         quantity: quantita,
@@ -101,7 +105,8 @@ export default function OrdersDashboard() {
       // reset campi: logica multi ordine
       if (multiOrdine) {
         setQuantita(1);
-        setDimensioni("");
+        setAltezza("");
+        setLarghezza("");
         setPersonalizzazioni("");
         if (isAdmin()) setPrezzoManuale("");
       } else {
@@ -110,7 +115,8 @@ export default function OrdersDashboard() {
         setQuantita(1);
         setTipoSelezionato("");
         setSottocategoria("");
-        setDimensioni("");
+        setAltezza("");
+        setLarghezza("");
         setColore("");
         setPersonalizzazioni("");
         setTelefono("");
@@ -179,12 +185,26 @@ export default function OrdersDashboard() {
         </select>
       )}
 
-      <input
-        placeholder="Dimensioni (es. 120x240)"
-        value={dimensioni}
-        onChange={e => setDimensioni(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 10 }}
-      />
+      <div style={{ display: "flex", gap: 10 }}>
+        <input
+          type="number"
+          min="0.1"
+          step="0.1"
+          placeholder="Altezza (cm)"
+          value={altezza}
+          onChange={e => setAltezza(e.target.value)}
+          style={{ width: "50%", padding: 8, marginBottom: 10 }}
+        />
+        <input
+          type="number"
+          min="0.1"
+          step="0.1"
+          placeholder="Larghezza (cm)"
+          value={larghezza}
+          onChange={e => setLarghezza(e.target.value)}
+          style={{ width: "50%", padding: 8, marginBottom: 10 }}
+        />
+      </div>
 
       <input
         placeholder="Colore"
