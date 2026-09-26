@@ -14,6 +14,7 @@ import ScanOrderPage   from "./components/ScanOrderPage";
 import WebScanner      from "./components/WebScanner";
 import LoginPage       from "./components/LoginPage";
 import PrivateRoute    from "./components/PrivateRoute";
+import TeloCutsPage    from "./components/TeloCutsPage";
 import { AuthContext } from "./AuthContext";
 
 export default function App() {
@@ -53,6 +54,15 @@ export default function App() {
             Scanner
           </NavLink>
 
+          <NavLink to="/taglio-teli"
+            style={({ isActive }) => ({
+              marginRight:8,
+              fontWeight: isActive ? "bold" : "normal"
+            })}
+          >
+            Taglio teli
+          </NavLink>
+
           {user.username==="admin" && (
             <NavLink to="/settings"
               style={({ isActive }) => ({
@@ -83,6 +93,10 @@ export default function App() {
 
         <Route path="/scanner"
           element={<PrivateRoute><WebScanner/></PrivateRoute>}
+        />
+
+        <Route path="/taglio-teli"
+          element={<PrivateRoute><TeloCutsPage/></PrivateRoute>}
         />
 
         <Route path="/settings"
